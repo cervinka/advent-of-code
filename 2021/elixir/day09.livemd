@@ -1,0 +1,197 @@
+# Day 09
+
+## Setup
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"},
+  {:vega_lite, "~> 0.1.2"}
+])
+
+alias VegaLite, as: Vl
+```
+
+```elixir
+input = Kino.Input.textarea("Real input here:")
+```
+
+```elixir
+heights =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n")
+  |> Enum.map(fn line ->
+    line
+    |> String.codepoints()
+    |> Enum.map(&String.to_integer/1)
+    |> List.to_tuple()
+  end)
+  |> List.to_tuple()
+```
+
+## Part 1
+
+```elixir
+defmodule Heightmap do
+  def on_map?(width, height, {x, y}) do
+    x >= 0 && y >= 0 && x < width && y < height
+  end
+
+  def adjacents(width, height, {x, y}) do
+    [{x, y - 1}, {x, y + 1}, {x - 1, y}, {x + 1, y}]
+    |> Enum.filter(&on_map?(width, height, &1))
+  end
+
+  def height_at(map, {x, y}), do: elem(map, y) |> elem(x)
+
+  def low_point?(map, width, height, point) do
+    h = height_at(map, point)
+
+    Heightmap.adjacents(width, height, point)
+    |> Enum.map(&height_at(map, &1))
+    |> Enum.all?(&(&1 > h))
+  end
+
+  def low_points(map) do
+    {width, height} = map_dimensions(map)
+
+    for y <- 0..(height - 1),
+        x <- 0..(width - 1) do
+      {x, y}
+    end
+    |> Enum.filter(&low_point?(map, width, height, &1))
+  end
+
+  def basin_for_point(point, map) do
+    {width, height} = map_dimensions(map)
+    grow_basin(map, width, height, [point], MapSet.new())
+  end
+
+  defp grow_basin(_map, _width, _height, [], basin_points), do: MapSet.to_list(basin_points)
+
+  defp grow_basin(map, width, height, [point | rest], basin_points) do
+    basin_points = MapSet.put(basin_points, point)
+
+    {rest, basin_points} =
+      adjacents(width, height, point)
+      |> Enum.reduce({rest, basin_points}, fn new_point, {rest, basin_points} ->
+        if MapSet.member?(basin_points, new_point) do
+          # bod už je v bazénu
+          {rest, basin_points}
+        else
+          cond do
+            height_at(map, new_point) == 9 ->
+              {rest, basin_points}
+
+            height_at(map, new_point) >= height_at(map, point) ->
+              {[new_point | rest], basin_points}
+
+            true ->
+              {rest, basin_points}
+          end
+        end
+      end)
+
+    grow_basin(map, width, height, rest, basin_points)
+  end
+
+  defp map_dimensions(map) do
+    width = map |> elem(0) |> tuple_size()
+    height = map |> tuple_size()
+    {width, height}
+  end
+end
+
+heights
+|> Heightmap.low_points()
+|> IO.inspect()
+|> Enum.map(&Heightmap.height_at(heights, &1))
+|> then(fn points -> length(points) + Enum.sum(points) end)
+```
+
+## Part 2
+
+```elixir
+heights
+|> Heightmap.low_points()
+|> Enum.map(&Heightmap.basin_for_point(&1, heights))
+|> Enum.map(&length/1)
+|> Enum.sort(:desc)
+|> Enum.take(3)
+|> IO.inspect(charlists: :as_lists)
+|> Enum.reduce(&(&1 * &2))
+```
+
+## VegaLite
+
+* Source 1: https://github.com/miladamilli/Advent_of_Code_2021/blob/master/day09.livemd
+* Source 2: https://github.com/madlep/aoc_2021_elixir_livebook/blob/main/day09.livemd
+
+```elixir
+lines = input |> Kino.Input.read() |> String.split("\n", trim: true)
+
+grid =
+  for {line, row} <- Enum.with_index(lines),
+      {number, col} <- Enum.with_index(String.to_charlist(line)),
+      into: %{} do
+    {{row, col}, number - ?0}
+  end
+
+low_points =
+  Enum.filter(grid, fn {{row, col}, value} ->
+    up = grid[{row - 1, col}]
+    down = grid[{row + 1, col}]
+    left = grid[{row, col - 1}]
+    right = grid[{row, col + 1}]
+    value < up and value < down and value < left and value < right
+  end)
+
+defmodule Recursion do
+  def basin(point, grid) do
+    basin(MapSet.new(), point, grid)
+  end
+
+  defp basin(set, {row, col} = point, grid) do
+    if grid[point] in [9, nil] or point in set do
+      set
+    else
+      set
+      |> MapSet.put(point)
+      |> basin({row - 1, col}, grid)
+      |> basin({row + 1, col}, grid)
+      |> basin({row, col - 1}, grid)
+      |> basin({row, col + 1}, grid)
+    end
+  end
+end
+
+low_points
+|> Enum.map(fn {point, _} ->
+  point
+  |> Recursion.basin(grid)
+  |> MapSet.size()
+end)
+|> Enum.sort(:desc)
+|> Enum.take(3)
+|> Enum.product()
+
+low_points_set = for {point, _} <- low_points, into: MapSet.new(), do: point
+
+Vl.new(width: 700, height: 700)
+|> Vl.data_from_values(
+  Enum.map(grid, fn {{x, y}, h} ->
+    %{"x" => x, "y" => y, "h" => h, "lowpoint" => {x, y} in low_points_set}
+  end)
+)
+|> Vl.encode_field(:x, "x", type: :quantitative, axis: false)
+|> Vl.encode_field(:y, "y", type: :quantitative, axis: false)
+|> Vl.encode_field(:tooltip, "h", format_type: "number")
+|> Vl.layers([
+  Vl.new()
+  |> Vl.mark(:circle, size: 60, opacity: 0.8)
+  |> Vl.encode_field(:color, "h", type: :quantitative, scale: [range: ["red", "white", "green"]]),
+  Vl.new()
+  |> Vl.mark(:text, text: "🔥", size: 10)
+  |> Vl.transform(filter: "datum.lowpoint == true")
+])
+```

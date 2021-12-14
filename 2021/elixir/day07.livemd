@@ -1,0 +1,59 @@
+# Day 07
+
+## Setup
+
+https://adventofcode.com/2021/day/7
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"}
+])
+```
+
+```elixir
+input = Kino.Input.textarea("Real input here:")
+```
+
+```elixir
+positions =
+  input
+  |> Kino.Input.read()
+  |> String.split(",", trim: true)
+  |> Enum.map(&String.to_integer/1)
+```
+
+## Part 1
+
+```elixir
+sorted = Enum.sort(positions)
+half = div(length(positions), 2)
+
+sorted
+|> Enum.slice(half, 2)
+|> Enum.map(fn position ->
+  positions
+  |> Enum.map(fn j ->
+    distance = abs(j - position)
+    div(distance * (distance + 1), 2)
+  end)
+  |> Enum.sum()
+end)
+|> Enum.min()
+```
+
+## Part 2
+
+```elixir
+mean = Enum.sum(positions) / Enum.count(positions)
+
+floor(mean)..ceil(mean)
+|> Enum.map(fn position ->
+  positions
+  |> Enum.map(fn j ->
+    distance = abs(j - position)
+    div(distance * (distance + 1), 2)
+  end)
+  |> Enum.sum()
+end)
+|> Enum.min()
+```

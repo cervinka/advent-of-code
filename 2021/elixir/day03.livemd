@@ -1,0 +1,99 @@
+# Day 03
+
+## Setup
+
+https://adventofcode.com/2021/day/3
+
+```elixir
+Mix.install([
+  {:kino, ">= 0.0.0"}
+])
+```
+
+```elixir
+input = Kino.Input.textarea("Real input here:")
+```
+
+## Part 1
+
+```elixir
+bit_counter = fn bits ->
+  len = length(bits)
+  zeroes = Enum.count(bits, &(&1 == "0"))
+  ones = len - zeroes
+  {zeroes, ones}
+end
+
+most_common = fn digits ->
+  digits
+  |> bit_counter.()
+  |> then(fn {left, right} ->
+    cond do
+      left >= right -> "0"
+      true -> "1"
+    end
+  end)
+end
+
+gama_chars =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n", trim: true)
+  |> Enum.map(&String.graphemes/1)
+  |> Enum.zip()
+  |> Enum.map(&Tuple.to_list/1)
+  |> Enum.map(most_common)
+
+lambda_chars =
+  gama_chars
+  |> Enum.map(fn
+    "0" -> "1"
+    "1" -> "0"
+  end)
+
+[gama_chars, lambda_chars]
+|> Enum.map(fn chars ->
+  chars
+  |> Enum.join()
+  |> String.to_integer(2)
+end)
+|> then(fn [gama, lambda] -> gama * lambda end)
+```
+
+## Part 2
+
+```elixir
+defmodule Recur do
+  def o2(numbers) do
+    recur(numbers, 0, fn zeros, ones -> if ones >= zeros, do: "1", else: "0" end)
+  end
+
+  def co2(numbers) do
+    recur(numbers, 0, fn zeros, ones -> if zeros <= ones, do: "0", else: "1" end)
+  end
+
+  def recur([number], _idx, _fun) do
+    number
+    |> Enum.join()
+    |> String.to_integer(2)
+  end
+
+  def recur(numbers, idx, fun) do
+    total = length(numbers)
+    ones = Enum.count(numbers, fn number -> Enum.at(number, idx) == "1" end)
+    zeros = total - ones
+    picked_digit = fun.(zeros, ones)
+    selected_numbers = Enum.filter(numbers, fn number -> Enum.at(number, idx) == picked_digit end)
+    recur(selected_numbers, idx + 1, fun)
+  end
+end
+
+numbers =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n", trim: true)
+  |> Enum.map(&String.graphemes/1)
+  |> IO.inspect()
+
+Recur.o2(numbers) * Recur.co2(numbers)
+```

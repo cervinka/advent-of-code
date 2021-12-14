@@ -1,0 +1,47 @@
+# Day 02
+
+## Setup
+
+https://adventofcode.com/2021/day/2
+
+```elixir
+Mix.install([
+  {:kino, ">= 0.0.0"}
+])
+```
+
+```elixir
+input = Kino.Input.textarea("Your input here:")
+```
+
+## Part 1
+
+```elixir
+input
+|> Kino.Input.read()
+|> String.split("\n", trim: true)
+|> Enum.map(&String.split/1)
+|> Enum.map(fn [cmd, val] -> {String.to_atom(cmd), String.to_integer(val)} end)
+|> Enum.reduce({0, 0}, fn
+  {:forward, val}, {depth, position} -> {depth, position + val}
+  {:up, val}, {depth, position} -> {depth - val, position}
+  {:down, val}, {depth, position} -> {depth + val, position}
+end)
+|> then(fn {depth, position} -> depth * position end)
+```
+
+## Part 2
+
+```elixir
+input
+|> Kino.Input.read()
+|> String.split("\n", trim: true)
+|> Enum.map(&String.split/1)
+|> Enum.map(fn [cmd, val] -> {String.to_atom(cmd), String.to_integer(val)} end)
+|> Enum.reduce({_depth = 0, _position = 0, _aim = 0}, fn
+  {:forward, val}, {depth, position, aim} -> {depth + aim * val, position + val, aim}
+  {:up, val}, {depth, position, aim} -> {depth, position, aim - val}
+  {:down, val}, {depth, position, aim} -> {depth, position, aim + val}
+end)
+|> then(fn {depth, position, _aim} -> depth * position end)
+```

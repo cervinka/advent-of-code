@@ -1,0 +1,140 @@
+# Day 08
+
+## Setup
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"}
+])
+```
+
+```
+ 0: 6    1: 2    2: 5    3: 5    4: 4
+ aaaa    ....    aaaa    aaaa    ....
+b    c  .    c  .    c  .    c  b    c
+b    c  .    c  .    c  .    c  b    c
+ ....    ....    dddd    dddd    dddd
+e    f  .    f  e    .  .    f  .    f
+e    f  .    f  e    .  .    f  .    f
+ gggg    ....    gggg    gggg    ....
+
+ 5: 5    6: 6    7: 3    8: 7    9: 6
+ aaaa    aaaa    aaaa    aaaa    aaaa
+b    .  b    .  .    c  b    c  b    c
+b    .  b    .  .    c  b    c  b    c
+ dddd    dddd    ....    dddd    dddd
+.    f  e    f  .    f  e    f  .    f
+.    f  e    f  .    f  e    f  .    f
+ gggg    gggg    ....    gggg    gggg
+```
+
+```elixir
+number_segments = %{
+  0 => 'abcefg',
+  1 => 'cf',
+  2 => 'acdeg',
+  3 => 'acdfg',
+  4 => 'bcdf',
+  5 => 'abdfg',
+  6 => 'abdefg',
+  7 => 'acf',
+  8 => 'abcdefg',
+  9 => 'abcdfg'
+}
+```
+
+```elixir
+input = Kino.Input.textarea("Real input here:")
+```
+
+```elixir
+entries =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n", trim: true)
+  |> Enum.map(fn line ->
+    line
+    |> String.split([" ", "|"], trim: true)
+    |> Enum.map(&String.to_charlist/1)
+    |> Enum.chunk_every(10)
+    |> then(fn [patterns, value] -> {patterns, value} end)
+  end)
+```
+
+## Part 1
+
+```elixir
+entries
+|> Enum.reduce(0, fn {_patterns, values}, acc ->
+  count =
+    values
+    |> Enum.map(&length/1)
+    |> Enum.filter(fn el -> el in [2, 3, 4, 7] end)
+    |> Enum.count()
+
+  acc + count
+end)
+```
+
+## Part 2
+
+```elixir
+segment_frequencies = fn number_segments ->
+  number_segments
+  |> List.flatten()
+  |> Enum.frequencies()
+end
+
+correct_frequencies = segment_frequencies.(number_segments |> Map.values())
+```
+
+```elixir
+translate_segments = fn patterns ->
+  freq = segment_frequencies.(patterns)
+  # f segment has frequency 9
+  f = elem(Enum.find(freq, fn {_k, v} -> v == 9 end), 0)
+  # e segment has frequency 4
+  e = elem(Enum.find(freq, fn {_k, v} -> v == 4 end), 0)
+  # b segment has frequency 6
+  b = elem(Enum.find(freq, fn {_k, v} -> v == 6 end), 0)
+
+  # digit 1 has 2 segments
+  one = Enum.find(patterns, fn pattern -> length(pattern) == 2 end)
+  c = Enum.find(one, fn seg -> seg != f end)
+  # digit 7 has 3 segments
+  seven = Enum.find(patterns, fn pattern -> length(pattern) == 3 end)
+  a = Enum.find(seven, fn seg -> seg != f && seg != c end)
+  # digit 4 has 4 segments
+  four = Enum.find(patterns, fn pattern -> length(pattern) == 4 end)
+  d = Enum.find(four, fn seg -> seg != b && seg != c && seg != f end)
+  g = List.first('abcdefg' -- [a, b, c, d, e, f])
+  [a, b, c, d, e, f, g]
+end
+
+entries
+|> Enum.map(fn {patterns, value_digits} ->
+  [a, b, c, d, e, f, g] = translate_segments.(patterns)
+
+  value_digits
+  |> Enum.map(fn segments ->
+    segments = Enum.sort(segments)
+
+    cond do
+      segments == Enum.sort([a, b, c, e, f, g]) -> 0
+      segments == Enum.sort([c, f]) -> 1
+      segments == Enum.sort([a, c, d, e, g]) -> 2
+      segments == Enum.sort([a, c, d, f, g]) -> 3
+      segments == Enum.sort([b, c, d, f]) -> 4
+      segments == Enum.sort([a, b, d, f, g]) -> 5
+      segments == Enum.sort([a, b, d, e, f, g]) -> 6
+      segments == Enum.sort([a, c, f]) -> 7
+      segments == Enum.sort([a, b, c, d, e, f, g]) -> 8
+      segments == Enum.sort([a, b, c, d, f, g]) -> 9
+    end
+  end)
+end)
+|> Enum.map(&Integer.undigits/1)
+|> Enum.sum()
+```
+
+NOTE: Better option should be not to translate idividual segments, but insted translate whole digits

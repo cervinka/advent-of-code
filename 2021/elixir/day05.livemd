@@ -1,0 +1,111 @@
+# Day 05
+
+## Setup
+
+https://adventofcode.com/2021/day/5
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.0"},
+  {:vega_lite, "~> 0.1.1"}
+])
+
+alias VegaLite, as: VL
+```
+
+```elixir
+input = Kino.Input.textarea("Real input here:")
+```
+
+```elixir
+defmodule Line do
+  def parse_line(str_line) do
+    str_line
+    |> String.split(~r/,| -> /)
+    |> Enum.map(&String.to_integer/1)
+    |> then(fn [x1, y1, x2, y2] -> {{x1, y1}, {x2, y2}} end)
+  end
+
+  def point_on_line(_line = {{x1, y1}, {x2, y2}}, x) do
+    x_diff = abs(x1 - x2)
+    ratio = abs(x - x1) / x_diff
+    _y = round(y1 + ratio * (y2 - y1))
+  end
+
+  def orthogonal?({{x1, y1}, {x2, y2}}), do: x1 == x2 || y1 == y2
+
+  def points(lines) do
+    lines
+    |> Enum.map(&line_points/1)
+    |> List.flatten()
+  end
+
+  def coverage_map(lines) do
+    points(lines)
+    |> Enum.frequencies()
+  end
+
+  # by x ace
+  def line_points(line = {{x1, y1}, {x2, y2}}) when abs(x1 - x2) > abs(y1 - y2) do
+    x1..x2
+    |> Enum.map(fn x -> {x, point_on_line(line, x)} end)
+  end
+
+  # by y axe
+  def line_points({{x1, y1}, {x2, y2}}) do
+    y1..y2
+    |> Enum.map(fn y -> {point_on_line({{y1, x1}, {y2, x2}}, y), y} end)
+  end
+end
+```
+
+## Part 1
+
+```elixir
+coverage_map =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n", trim: true)
+  |> Enum.map(&Line.parse_line/1)
+  |> Enum.filter(&Line.orthogonal?/1)
+  |> Line.coverage_map()
+
+coverage_map
+|> Map.values()
+|> Enum.count(fn count -> count >= 2 end)
+```
+
+## Part 2
+
+```elixir
+coverage_map =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n", trim: true)
+  |> Enum.map(&Line.parse_line/1)
+  |> Line.coverage_map()
+
+coverage_map
+|> Map.values()
+|> Enum.count(fn count -> count >= 2 end)
+```
+
+## Visualization
+
+```elixir
+points =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n", trim: true)
+  |> Enum.map(&Line.parse_line/1)
+  |> Line.points()
+  |> Enum.map(fn {x, y} -> %{x: x, y: y} end)
+
+VegaLite.new(width: 800, height: 800)
+|> VegaLite.data_from_values(points)
+|> VegaLite.mark(:circle)
+|> VegaLite.encode_field(:x, "x", axis: [title: "x"], bin: [maxbins: 100])
+|> VegaLite.encode_field(:y, "y", axis: [title: "y"], bin: [maxbins: 100])
+|> VegaLite.encode(:size, aggregate: :count)
+|> VegaLite.encode(:color, aggregate: :count)
+```

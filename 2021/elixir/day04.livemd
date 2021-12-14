@@ -1,0 +1,144 @@
+# Day 04
+
+## Setup
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.0"}
+])
+```
+
+```elixir
+input = Kino.Input.textarea("Test input here:")
+```
+
+## Part 01
+
+```elixir
+defmodule Bingo do
+  defstruct boards: [],
+            last_number: nil
+
+  def build_boards(boards_texts) do
+    %__MODULE__{
+      boards: boards_texts |> Enum.map(&Board.build_board/1)
+    }
+  end
+
+  def draw_next_number(bingo = %{boards: boards}, new_number) do
+    new_boards = Enum.map(boards, fn board -> Board.play(board, new_number) end)
+
+    bingo
+    |> Map.put(:boards, new_boards)
+    |> Map.put(:last_number, new_number)
+  end
+
+  def remove_winners(bingo = %{boards: boards}) do
+    rest_boards = Enum.filter(boards, fn board -> !Board.won?(board) end)
+
+    bingo
+    |> Map.put(:boards, rest_boards)
+  end
+
+  def winner(%{boards: boards}) do
+    Enum.find(boards, fn board -> Board.won?(board) end)
+  end
+
+  def has_winner?(bingo) do
+    winner(bingo) != nil
+  end
+end
+
+defmodule Board do
+  def build_board(text) do
+    text
+    |> String.split("\n")
+    |> Enum.map(fn row ->
+      String.split(row) |> Enum.map(fn num -> {String.to_integer(num), false} end)
+    end)
+  end
+
+  def play(board, new_number) do
+    Enum.map(board, fn row ->
+      Enum.map(row, fn {number, drawn} ->
+        {number, if(number == new_number, do: true, else: drawn)}
+      end)
+    end)
+  end
+
+  def won?(board) do
+    won_in_row?(board) || won_in_col?(board)
+  end
+
+  defp won_in_row?(board) do
+    Enum.any?(board, fn row -> Enum.all?(row, fn {_num, drawn} -> drawn end) end)
+  end
+
+  defp won_in_col?(board) do
+    cols = length(List.first(board))
+
+    Enum.any?(0..(cols - 1), fn col_idx ->
+      Enum.all?(board, fn row -> elem(Enum.at(row, col_idx), 1) end)
+    end)
+  end
+
+  def score(board, last_number) do
+    board
+    |> List.flatten()
+    |> Enum.filter(fn {_num, drawn} -> !drawn end)
+    |> Enum.map(fn {num, _} -> num end)
+    |> Enum.sum()
+    |> Kernel.*(last_number)
+  end
+end
+
+[numbers_text | boards_texts] =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n\n")
+
+drawn_numbers = numbers_text |> String.split(",") |> Enum.map(&String.to_integer/1)
+bingo = Bingo.build_boards(boards_texts)
+
+{winner, score} =
+  Enum.reduce_while(drawn_numbers, bingo, fn number, bingo ->
+    winner = Bingo.winner(bingo)
+
+    case winner do
+      nil -> {:cont, Bingo.draw_next_number(bingo, number)}
+      _ -> {:halt, {winner, Board.score(winner, bingo.last_number)}}
+    end
+  end)
+```
+
+## Part 2
+
+```elixir
+[numbers_text | boards_texts] =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n\n")
+
+drawn_numbers = numbers_text |> String.split(",") |> Enum.map(&String.to_integer/1)
+bingo = Bingo.build_boards(boards_texts)
+
+{winner, score} =
+  Enum.reduce_while(drawn_numbers, bingo, fn number, bingo ->
+    winner = Bingo.winner(bingo)
+
+    case winner do
+      nil ->
+        {:cont, Bingo.draw_next_number(bingo, number)}
+
+      _ ->
+        case length(bingo.boards) do
+          1 ->
+            {:halt, {winner, Board.score(winner, bingo.last_number)}}
+
+          _ ->
+            bingo = Bingo.remove_winners(bingo)
+            {:cont, Bingo.draw_next_number(bingo, number)}
+        end
+    end
+  end)
+```

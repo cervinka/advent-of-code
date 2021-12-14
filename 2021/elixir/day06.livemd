@@ -1,0 +1,144 @@
+# Day 06
+
+## Setup
+
+https://adventofcode.com/2021/day/6
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.0"},
+  {:vega_lite, "~> 0.1.1"}
+])
+```
+
+```elixir
+input = Kino.Input.textarea("Real input here:")
+```
+
+## Part 1
+
+```elixir
+# Naive implementation - keeping track of all fishes
+defmodule Fish do
+  def evolution(fishes, 0), do: fishes
+  def evolution(fishes, days), do: evolution(breed(fishes), days - 1)
+
+  def breed([]), do: []
+  def breed([0 | fishes]), do: [6, 8 | breed(fishes)]
+  def breed([age | fishes]), do: [age - 1 | breed(fishes)]
+end
+
+fishes =
+  input
+  |> Kino.Input.read()
+  |> String.split(",")
+  |> Enum.map(&String.to_integer/1)
+
+fishes
+|> Fish.evolution(80)
+|> Enum.sum()
+```
+
+## Part 2
+
+```elixir
+defmodule SmartFish do
+  def evolution(fishes, days), do: calc_evolution(Enum.frequencies(fishes), days)
+
+  def calc_evolution(fish_frequencies, 0), do: Map.values(fish_frequencies) |> Enum.sum()
+
+  def calc_evolution(frequencies, days) do
+    new_frequencies =
+      Enum.reduce(frequencies, %{}, fn
+        {day, count}, new_frequencies -> Map.put(new_frequencies, day - 1, count)
+      end)
+
+    new_born = Map.get(new_frequencies, -1, 0)
+
+    new_frequencies =
+      new_frequencies
+      |> Map.put(8, new_born)
+      |> Map.update(6, new_born, fn six_day -> six_day + new_born end)
+      |> Map.delete(-1)
+
+    calc_evolution(new_frequencies, days - 1)
+  end
+end
+
+fishes =
+  input
+  |> Kino.Input.read()
+  |> String.split(",")
+  |> Enum.map(&String.to_integer/1)
+
+fishes
+|> SmartFish.evolution(256)
+```
+
+## Visualisation
+
+```elixir
+alias VegaLite, as: Vl
+
+## Population growth over time
+
+graph =
+  Vl.new(height: 300, width: 300)
+  |> Vl.mark(:line)
+  |> Vl.encode_field(:x, "day", type: :quantitative)
+  |> Vl.encode_field(:y, "count", type: :quantitative)
+  # |> Vl.encode_field(:y, "count", type: :quantitative, scale: [type: :log])
+  |> Kino.VegaLite.new()
+  |> Kino.render()
+
+Kino.VegaLite.periodically(
+  graph,
+  100,
+  {0, {0, 3, 2, 0, 0, 1, 0, 1, 0}},
+  fn {day, {t0, t1, t2, t3, t4, t5, t6, t7, t8} = t} ->
+    count = Tuple.sum(t)
+    Kino.VegaLite.push(graph, %{day: day, count: count})
+
+    if day < 200 do
+      t = {t1, t2, t3, t4, t5, t6, t7 + t0, t8, t0}
+      {:cont, {day + 1, t}}
+    else
+      :halt
+    end
+  end
+)
+
+## Timers histogram over time
+
+# Change the initial value and see how the histogram stabilizes over time.
+
+graph =
+  Vl.new(height: 300, width: 300)
+  |> Vl.mark(:bar)
+  |> Vl.encode_field(:x, "timer", type: :nominal)
+  |> Vl.encode_field(:y, "count", type: :quantitative)
+  |> Kino.VegaLite.new()
+  |> Kino.render()
+
+Kino.VegaLite.periodically(
+  graph,
+  100,
+  {0, {0, 3, 2, 0, 0, 1, 0, 1, 0}},
+  fn {day, {t0, t1, t2, t3, t4, t5, t6, t7, t8} = t} ->
+    histogram_points =
+      t
+      |> Tuple.to_list()
+      |> Enum.with_index()
+      |> Enum.map(fn {count, timer} -> %{count: count, timer: timer} end)
+
+    Kino.VegaLite.push_many(graph, histogram_points, window: length(histogram_points))
+
+    if day < 200 do
+      t = {t1, t2, t3, t4, t5, t6, t7 + t0, t8, t0}
+      {:cont, {day + 1, t}}
+    else
+      :halt
+    end
+  end
+)
+```

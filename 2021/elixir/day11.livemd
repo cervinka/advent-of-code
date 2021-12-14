@@ -1,0 +1,153 @@
+# Day 11
+
+## Setup
+
+https://adventofcode.com/2021/day/11
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"},
+  {:vega_lite, "~> 0.1.2"}
+])
+
+alias VegaLite, as: Vl
+```
+
+```elixir
+input = Kino.Input.textarea("Paste your input here:")
+```
+
+```elixir
+grid =
+  for {line, row} <-
+        input |> Kino.Input.read() |> String.split("\n", trim: true) |> Enum.with_index(),
+      {energy, col} <-
+        line |> String.graphemes() |> Enum.map(&String.to_integer/1) |> Enum.with_index(),
+      do: {{row, col}, energy},
+      into: %{}
+```
+
+```elixir
+defmodule Octogrid do
+  def next_step(grid) do
+    positions = Map.keys(grid)
+    flashed = MapSet.new()
+    flash(grid, positions, flashed)
+  end
+
+  def flash(grid, [], flashed), do: {grid, MapSet.size(flashed)}
+
+  def flash(grid, [position = {row, col} | positions], flashed) do
+    energy = grid[position]
+
+    cond do
+      # out of board
+      energy == nil ->
+        flash(grid, positions, flashed)
+
+      # already flashed
+      MapSet.member?(flashed, position) ->
+        flash(grid, positions, flashed)
+
+      energy >= 9 ->
+        new_positions = for(x <- -1..1, y <- -1..1, x != 0 || y != 0, do: {row + x, col + y})
+        flashed = MapSet.put(flashed, position)
+        grid = Map.put(grid, position, 0)
+        flash(grid, new_positions ++ positions, flashed)
+
+      true ->
+        grid = Map.put(grid, position, energy + 1)
+        flash(grid, positions, flashed)
+    end
+  end
+
+  def print({grid, count}) do
+    IO.puts("#{count} flashes")
+    {rows, cols} = dimensions(grid)
+
+    for row <- 0..rows do
+      IO.puts(for(col <- 0..cols, do: grid[{row, col}] + ?0))
+    end
+
+    IO.puts("")
+    grid
+  end
+
+  def dimensions(grid) do
+    grid
+    |> Map.keys()
+    |> Enum.reduce(fn {row, col}, {maxr, maxc} ->
+      {max(row, maxr), max(col, maxc)}
+    end)
+  end
+end
+```
+
+## Part 1
+
+```elixir
+1..100
+|> Enum.reduce({grid, 0}, fn _, {grid, count} ->
+  {grid, flashes} = Octogrid.next_step(grid)
+  {grid, flashes + count}
+end)
+|> elem(1)
+```
+
+## Part 2
+
+```elixir
+Stream.iterate(1, &(&1 + 1))
+|> Enum.reduce_while(grid, fn idx, grid ->
+  {grid, flashes} = Octogrid.next_step(grid)
+
+  if map_size(grid) == flashes do
+    {:halt, idx}
+  else
+    {:cont, grid}
+  end
+end)
+```
+
+## Visualisation
+
+```elixir
+graph =
+  Vl.new(height: 200, width: 200)
+  |> Vl.mark(:circle, opacity: 0.8)
+  |> Vl.encode_field(:x, "x", type: :quantitative, axis: false)
+  |> Vl.encode_field(:y, "y", type: :quantitative, axis: false)
+  |> Vl.encode_field(:color, "h",
+    type: :quantitative,
+    scale: [domain: [0, 20], range: ["brown", "red", "yellow"]]
+  )
+  |> Vl.encode_field(:size, "h",
+    type: :quantitative,
+    scale: [domain: [0, 20], range: [20, 300]]
+  )
+  |> Kino.VegaLite.new()
+  |> Kino.render()
+
+Kino.VegaLite.periodically(
+  graph,
+  100,
+  grid,
+  fn grid ->
+    {grid, flashes} = Octogrid.next_step(grid)
+
+    data =
+      Enum.map(grid, fn {{x, y}, h} ->
+        %{"x" => x, "y" => y, "h" => if(h == 0, do: 20, else: h - 1)}
+      end)
+
+    Kino.VegaLite.clear(graph)
+    Kino.VegaLite.push_many(graph, data)
+
+    if map_size(grid) == flashes do
+      :halt
+    else
+      {:cont, grid}
+    end
+  end
+)
+```

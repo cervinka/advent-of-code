@@ -1,0 +1,106 @@
+# Day 10
+
+## Setup
+
+Advent of code - day 10: https://adventofcode.com/2021/day/10
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"}
+])
+```
+
+```elixir
+input = Kino.Input.textarea("Input here:")
+```
+
+## Part 1 - with reduce
+
+```elixir
+error_score = fn line ->
+  line
+  |> String.to_charlist()
+  |> Enum.reduce_while([], fn
+    ch, acc when ch in '[{(<' -> {:cont, [ch | acc]}
+    ch, [last | rest] when abs(last - ch) < 3 -> {:cont, rest}
+    ch, _acc -> {:halt, Map.get(%{?) => 3, ?} => 1197, ?> => 25137, ?] => 57}, ch)}
+  end)
+end
+
+input
+|> Kino.Input.read()
+|> String.split("\n", trim: true)
+|> Enum.map(error_score)
+|> Enum.filter(fn maybe_num -> is_number(maybe_num) end)
+|> Enum.sum()
+```
+
+## Part 2 - with reduce
+
+```elixir
+input
+|> Kino.Input.read()
+|> String.split("\n", trim: true)
+|> Enum.map(error_score)
+|> Enum.filter(fn maybe_num -> !is_number(maybe_num) end)
+|> Enum.map(fn chars ->
+  chars
+  |> Enum.reduce(0, fn
+    ?(, sum -> sum * 5 + 1
+    ?[, sum -> sum * 5 + 2
+    ?{, sum -> sum * 5 + 3
+    ?<, sum -> sum * 5 + 4
+  end)
+end)
+|> Enum.sort()
+|> then(&Enum.at(&1, div(length(&1), 2)))
+```
+
+## With recursion - common part
+
+```elixir
+defmodule Syntax do
+  @incomplete_scores %{?) => 1, ?] => 2, ?} => 3, ?> => 4}
+  @corrupted_scores %{?) => 3, ?] => 57, ?} => 1197, ?> => 25137}
+
+  def parse(line), do: line |> String.to_charlist() |> do_parsing(_stack = [])
+
+  # levou závorku přidáme na stack
+  defp do_parsing([?< | rest], stack), do: do_parsing(rest, [?> | stack])
+  defp do_parsing([?{ | rest], stack), do: do_parsing(rest, [?} | stack])
+  defp do_parsing([?[ | rest], stack), do: do_parsing(rest, [?] | stack])
+  defp do_parsing([?( | rest], stack), do: do_parsing(rest, [?) | stack])
+  # není co zpracovat a stak je prázdný -> celý řádek byl v pořádku
+  defp do_parsing([], []), do: :complete
+  # není co zpracovat a zbyl stack -> oskorujemen neuzavřené závorky
+  defp do_parsing([], stack) do
+    {:incomplete, Enum.reduce(stack, 0, &(&2 * 5 + Map.get(@incomplete_scores, &1)))}
+  end
+
+  # pravá závorka odpovídá vrchní závorce na stacku -> snížíme stack a pokračujeme
+  defp do_parsing([ch | rest], [ch | stack_rest]), do: do_parsing(rest, stack_rest)
+  # v jiném případě je spracovávaný znak neplatný -> skončíme a oskorujeme neplatný znak
+  defp do_parsing([ch | _rest], _stack), do: {:corrupted, Map.get(@corrupted_scores, ch)}
+end
+
+parsed_lines =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n", trim: true)
+  |> Enum.map(&Syntax.parse/1)
+```
+
+## recursion - part 1 results
+
+```elixir
+for({:corrupted, score} <- parsed_lines, do: score)
+|> Enum.sum()
+```
+
+## recursion - part 2 results
+
+```elixir
+for({:incomplete, score} <- parsed_lines, do: score)
+|> Enum.sort()
+|> then(&Enum.at(&1, div(length(&1), 2)))
+```

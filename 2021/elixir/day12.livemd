@@ -1,0 +1,121 @@
+# Day 12
+
+## Setup
+
+https://adventofcode.com/2021/day/12
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"},
+  {:vega_lite, "~> 0.1.2"}
+])
+
+alias VegaLite, as: Vl
+```
+
+```elixir
+input = Kino.Input.textarea("Your input here:")
+```
+
+```elixir
+edges =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n", trim: true)
+  |> Enum.map(fn line ->
+    [left, right] = String.split(line, "-")
+    [{left, right}, {right, left}]
+  end)
+  |> List.flatten()
+  |> Enum.filter(fn {left, right} -> left != "end" && right != "start" end)
+  |> Enum.reduce(%{}, fn {left, right}, edges ->
+    Map.update(edges, left, [right], fn set -> [right | set] end)
+  end)
+```
+
+```elixir
+defmodule Pathfinder do
+  def paths_for(edges, can_visit?) do
+    explore(edges["start"], edges, _seen = %{}, _path = ["start"], _finished = [], can_visit?)
+  end
+
+  defp explore(["end" | caves], edges, seen, path, finished, can_visit?) do
+    explore(caves, edges, seen, path, [["end" | path] | finished], can_visit?)
+  end
+
+  defp explore([cave | caves], edges, seen, path, finished, can_visit?) do
+    finished =
+      cond do
+        !can_visit?.(cave, seen) ->
+          finished
+
+        lowercased?(cave) ->
+          explore(
+            edges[cave],
+            edges,
+            Map.update(seen, cave, 1, &(&1 + 1)),
+            [cave | path],
+            finished,
+            can_visit?
+          )
+
+        true ->
+          explore(edges[cave], edges, seen, [cave | path], finished, can_visit?)
+      end
+
+    explore(caves, edges, seen, path, finished, can_visit?)
+  end
+
+  defp explore([], _edges, _seen, _path, finished, _can_visit?) do
+    finished
+  end
+
+  # prepared rule 1
+  def can_visit1?(cave, seen) do
+    seen[cave] == nil
+  end
+
+  # prepared rule 2
+  def can_visit2?(cave, seen) do
+    more_than_once_count = seen |> Map.values() |> Enum.filter(&(&1 > 1)) |> Enum.count()
+
+    :binary.first(cave) in ?A..?Z or
+      more_than_once_count == 0 or
+      (more_than_once_count == 1 && seen[cave] == nil)
+  end
+
+  defp lowercased?(cave), do: :binary.first(cave) in ?a..?z
+end
+```
+
+## Part1
+
+```elixir
+Pathfinder.paths_for(edges, fn cave, seen -> seen[cave] == nil end)
+|> Enum.count()
+```
+
+## Part 2
+
+```elixir
+# if visit rule is from module the computation takes ~1s
+
+Pathfinder.paths_for(edges, &Pathfinder.can_visit2?/2)
+|> Enum.count()
+```
+
+```elixir
+# if (the same) visit rule is anonymous function the computation takes ~40s 
+# - is it an evaluation problem?
+
+vist_rule = fn cave, seen ->
+  more_than_once_count = seen |> Map.values() |> Enum.filter(&(&1 > 1)) |> Enum.count()
+
+  :binary.first(cave) in ?A..?Z or
+    more_than_once_count == 0 or
+    (more_than_once_count == 1 && seen[cave] == nil)
+end
+
+Pathfinder.paths_for(edges, vist_rule)
+|> Enum.count()
+```
