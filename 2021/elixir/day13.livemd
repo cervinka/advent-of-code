@@ -63,16 +63,13 @@ defmodule Origami do
     fold(folds, fold_once(fold, points))
   end
 
-  def fold_once({:x, edge}, points) do
-    points
-    |> Enum.map(fn {x, y} -> {edge - abs(x - edge), y} end)
-    |> Enum.uniq()
-  end
-
-  def fold_once({:y, edge}, points) do
-    points
-    |> Enum.map(fn {x, y} -> {x, edge - abs(y - edge)} end)
-    |> Enum.uniq()
+  def fold_once({dir, edge}, points) do
+    Enum.map(points, fn {x, y} ->
+      case dir do
+        :x -> {edge - abs(x - edge), y}
+        :y -> {x, edge - abs(y - edge)}
+      end
+    end)
   end
 end
 ```
