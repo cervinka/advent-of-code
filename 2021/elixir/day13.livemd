@@ -2,7 +2,7 @@
 
 ## Setup
 
-https://adventofcode.com/2021/day/12
+https://adventofcode.com/2021/day/13
 
 ```elixir
 Mix.install([
@@ -16,72 +16,63 @@ input = Kino.Input.textarea("Your input here:")
 ```
 
 ```elixir
-[grid_text, folds_texts] =
+[points_text, folds_texts] =
   input
   |> Kino.Input.read()
   |> String.split("\n\n", trim: true)
 
-grid =
-  grid_text
+points =
+  points_text
   |> String.split("\n", trim: true)
-  |> Enum.reduce(%{}, fn line, grid ->
-    position =
-      line
-      |> String.split(",")
-      |> Enum.map(&String.to_integer/1)
-      |> List.to_tuple()
-
-    Map.put(grid, position, true)
+  |> Enum.map(fn line ->
+    [x, y] = String.split(line, ",")
+    {String.to_integer(x), String.to_integer(y)}
   end)
 
 folds =
   folds_texts
   |> String.split("\n", trim: true)
-  |> Enum.map(&(String.split(&1) |> List.last() |> String.split("=")))
-  |> Enum.map(fn [axe, position] -> {String.to_atom(axe), String.to_integer(position)} end)
+  |> Enum.map(fn <<"fold along ", axe, "=", fold::binary>> ->
+    {String.to_atom(<<axe>>), String.to_integer(fold)}
+  end)
 ```
 
 ```elixir
 defmodule Origami do
-  def print(grid) do
-    {cols, rows} = dimensions(grid)
+  def print(points) do
+    {cols, rows} = dimensions(points)
+    grid = Enum.reduce(points, %{}, fn pos, grid -> Map.put(grid, pos, true) end)
 
     for y <- 0..(rows - 1) do
-      for(x <- 0..(cols - 1), do: if(Map.get(grid, {x, y}, false), do: '#', else: '.'))
+      for(x <- 0..(cols - 1), do: if(Map.get(grid, {x, y}, false), do: ' # ', else: '   '))
       |> IO.puts()
     end
 
-    IO.puts("-----------------------------")
     grid
   end
 
-  def dimensions(grid) do
-    grid
-    |> Map.keys()
-    |> Enum.reduce(fn {x, y}, {maxx, maxy} ->
-      {max(x, maxx), max(y, maxy)}
-    end)
-    |> then(fn {x, y} -> {x + 1, y + 1} end)
+  def dimensions(points) do
+    {x, _} = Enum.max_by(points, fn {x, _} -> x end)
+    {_, y} = Enum.max_by(points, fn {_, y} -> y end)
+    {x + 1, y + 1}
   end
 
-  def fold(grid, {:y, edge}) do
-    {cols, rows} = dimensions(grid)
+  def fold([], points), do: points
 
-    for(x <- 0..(cols - 1), y <- (edge + 1)..(rows - 1), do: {x, y})
-    |> Enum.reduce(grid, fn {x, y} = xy, grid ->
-      if grid[xy], do: Map.put(grid, {x, edge - (y - edge)}, true), else: grid
-    end)
-    |> Map.filter(fn {{_x, y}, _v} -> y < edge end)
+  def fold([fold | folds], points) do
+    fold(folds, fold_once(fold, points))
   end
 
-  def fold(grid, {:x, edge}) do
-    {cols, rows} = dimensions(grid)
+  def fold_once({:x, edge}, points) do
+    points
+    |> Enum.map(fn {x, y} -> {edge - abs(x - edge), y} end)
+    |> Enum.uniq()
+  end
 
-    for(x <- (edge + 1)..(cols - 1), y <- 0..(rows - 1), do: {x, y})
-    |> Enum.reduce(grid, fn {x, y} = xy, grid ->
-      if grid[xy], do: Map.put(grid, {edge - (x - edge), y}, true), else: grid
-    end)
-    |> Map.filter(fn {{x, _y}, _v} -> x < edge end)
+  def fold_once({:y, edge}, points) do
+    points
+    |> Enum.map(fn {x, y} -> {x, edge - abs(y - edge)} end)
+    |> Enum.uniq()
   end
 end
 ```
@@ -89,16 +80,16 @@ end
 ## Part 1
 
 ```elixir
-fold = List.first(folds)
-
-Origami.fold(grid, fold)
-|> map_size()
+folds
+|> Enum.take(1)
+|> Origami.fold(points)
+|> length()
 ```
 
 ## Part 2
 
 ```elixir
 folds
-|> Enum.reduce(grid, fn fold, grid -> Origami.fold(grid, fold) end)
+|> Origami.fold(points)
 |> Origami.print()
 ```
