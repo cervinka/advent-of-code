@@ -1,0 +1,104 @@
+# Day 13
+
+## Setup
+
+https://adventofcode.com/2021/day/12
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"},
+  {:vega_lite, "~> 0.1.2"}
+])
+```
+
+```elixir
+input = Kino.Input.textarea("Your input here:")
+```
+
+```elixir
+[grid_text, folds_texts] =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n\n", trim: true)
+
+grid =
+  grid_text
+  |> String.split("\n", trim: true)
+  |> Enum.reduce(%{}, fn line, grid ->
+    position =
+      line
+      |> String.split(",")
+      |> Enum.map(&String.to_integer/1)
+      |> List.to_tuple()
+
+    Map.put(grid, position, true)
+  end)
+
+folds =
+  folds_texts
+  |> String.split("\n", trim: true)
+  |> Enum.map(&(String.split(&1) |> List.last() |> String.split("=")))
+  |> Enum.map(fn [axe, position] -> {String.to_atom(axe), String.to_integer(position)} end)
+```
+
+```elixir
+defmodule Origami do
+  def print(grid) do
+    {cols, rows} = dimensions(grid)
+
+    for y <- 0..(rows - 1) do
+      for(x <- 0..(cols - 1), do: if(Map.get(grid, {x, y}, false), do: '#', else: '.'))
+      |> IO.puts()
+    end
+
+    IO.puts("-----------------------------")
+    grid
+  end
+
+  def dimensions(grid) do
+    grid
+    |> Map.keys()
+    |> Enum.reduce(fn {x, y}, {maxx, maxy} ->
+      {max(x, maxx), max(y, maxy)}
+    end)
+    |> then(fn {x, y} -> {x + 1, y + 1} end)
+  end
+
+  def fold(grid, {:y, edge}) do
+    {cols, rows} = dimensions(grid)
+
+    for(x <- 0..(cols - 1), y <- (edge + 1)..(rows - 1), do: {x, y})
+    |> Enum.reduce(grid, fn {x, y} = xy, grid ->
+      if grid[xy], do: Map.put(grid, {x, edge - (y - edge)}, true), else: grid
+    end)
+    |> Map.filter(fn {{_x, y}, _v} -> y < edge end)
+  end
+
+  def fold(grid, {:x, edge}) do
+    {cols, rows} = dimensions(grid)
+
+    for(x <- (edge + 1)..(cols - 1), y <- 0..(rows - 1), do: {x, y})
+    |> Enum.reduce(grid, fn {x, y} = xy, grid ->
+      if grid[xy], do: Map.put(grid, {edge - (x - edge), y}, true), else: grid
+    end)
+    |> Map.filter(fn {{x, _y}, _v} -> x < edge end)
+  end
+end
+```
+
+## Part 1
+
+```elixir
+fold = List.first(folds)
+
+Origami.fold(grid, fold)
+|> map_size()
+```
+
+## Part 2
+
+```elixir
+folds
+|> Enum.reduce(grid, fn fold, grid -> Origami.fold(grid, fold) end)
+|> Origami.print()
+```

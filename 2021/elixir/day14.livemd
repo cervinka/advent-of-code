@@ -1,0 +1,99 @@
+# Day 14
+
+## Setup
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"},
+  {:vega_lite, "~> 0.1.2"}
+])
+```
+
+```elixir
+input = Kino.Input.textarea("Your input here:")
+```
+
+```elixir
+[template_str, rules_str] =
+  input
+  |> Kino.Input.read()
+  |> String.split("\n\n", trim: true)
+
+template =
+  template_str
+  |> String.to_charlist()
+
+rules =
+  rules_str
+  |> String.split("\n", trim: true)
+  |> Enum.map(fn <<first, second, " -> ", middle>> -> {[first, second], middle} end)
+  |> Map.new()
+```
+
+## Part 1
+
+```elixir
+defmodule Polymerization do
+  def polymerize(template, rules) do
+    polymerize(template, rules, [])
+  end
+
+  defp polymerize([first, second | rest], rules, acc) do
+    middle = rules[[first, second]]
+    polymerize([second | rest], rules, [middle, first | acc])
+  end
+
+  defp polymerize([last], _rules, acc), do: Enum.reverse([last | acc])
+end
+
+1..10
+|> Enum.reduce(template, fn _, template -> Polymerization.polymerize(template, rules) end)
+|> Enum.frequencies()
+|> Map.values()
+|> Enum.min_max()
+|> then(fn {min, max} -> max - min end)
+```
+
+## Part 2
+
+```elixir
+defmodule FastPolymerization do
+  def calculate_score(template, rules, count) do
+    frequencies =
+      template
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.frequencies()
+
+    1..count
+    |> Enum.reduce(frequencies, fn _, frequencies -> polymerize(frequencies, rules) end)
+    |> count_elements(template)
+  end
+
+  def count_elements(frequencies, template) do
+    frequencies
+    |> Enum.reduce(%{}, fn {[first, second], count}, counts ->
+      counts
+      |> Map.update([first], count, &(&1 + count))
+      |> Map.update([second], count, &(&1 + count))
+    end)
+    |> Map.update!([List.first(template)], &(&1 + 1))
+    |> Map.update!([List.last(template)], &(&1 + 1))
+    |> Map.values()
+    |> Enum.min_max()
+    |> then(fn {min, max} -> div(max - min, 2) end)
+  end
+
+  def polymerize(frequencies, rules) do
+    frequencies
+    |> Enum.reduce(%{}, fn {[first, second] = pair, count}, new_freq ->
+      middle = rules[pair]
+
+      new_freq
+      |> Map.update([first, middle], count, &(&1 + count))
+      |> Map.update([middle, second], count, &(&1 + count))
+    end)
+  end
+end
+
+FastPolymerization.calculate_score(template, rules, 40)
+```
