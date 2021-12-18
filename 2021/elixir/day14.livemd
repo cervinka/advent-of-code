@@ -2,6 +2,8 @@
 
 ## Setup
 
+https://adventofcode.com/2021/day/14
+
 ```elixir
 Mix.install([
   {:kino, "~> 0.4.1"},
@@ -14,10 +16,12 @@ input = Kino.Input.textarea("Your input here:")
 ```
 
 ```elixir
-[template_str, rules_str] =
-  input
-  |> Kino.Input.read()
-  |> String.split("\n\n", trim: true)
+# input = input |> Kino.Input.read()
+input = File.read!('input14.txt')
+```
+
+```elixir
+[template_str, rules_str] = String.split(input, "\n\n", trim: true)
 
 template =
   template_str
@@ -39,8 +43,7 @@ defmodule Polymerization do
   end
 
   defp polymerize([first, second | rest], rules, acc) do
-    middle = rules[[first, second]]
-    polymerize([second | rest], rules, [middle, first | acc])
+    polymerize([second | rest], rules, [rules[[first, second]], first | acc])
   end
 
   defp polymerize([last], _rules, acc), do: Enum.reverse([last | acc])

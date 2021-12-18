@@ -1,0 +1,154 @@
+# Day 16
+
+## Setup
+
+https://adventofcode.com/2021/day/16
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"},
+  {:vega_lite, "~> 0.1.2"},
+  {:libgraph, "~> 0.13.3"},
+  {:heap, "~> 2.0"}
+])
+```
+
+```elixir
+kino_input = Kino.Input.textarea("Your input here:")
+```
+
+```elixir
+# input = kino_input |> Kino.Input.read()
+input = File.read!('input16.txt') |> String.trim()
+:ok
+```
+
+```elixir
+defmodule Packet do
+  defstruct v: nil, t: nil, c: nil, b: nil
+  # version, type, content, bits length
+
+  def sum_versions(%{t: :literal, v: version}), do: version
+
+  def sum_versions(%{c: content, v: version}) do
+    Enum.reduce(content, version, fn packet, version_sum ->
+      version_sum + sum_versions(packet)
+    end)
+  end
+
+  def value(%{t: :literal, c: c}), do: c
+
+  def value(%{t: 0, c: c}), do: Enum.map(c, &Packet.value(&1)) |> Enum.sum()
+  def value(%{t: 1, c: c}), do: Enum.map(c, &Packet.value(&1)) |> Enum.product()
+  def value(%{t: 2, c: c}), do: Enum.map(c, &Packet.value(&1)) |> Enum.min()
+  def value(%{t: 3, c: c}), do: Enum.map(c, &Packet.value(&1)) |> Enum.max()
+  def value(%{t: 5, c: c}), do: greater_value(Enum.at(c, 0), Enum.at(c, 1))
+  def value(%{t: 6, c: c}), do: greater_value(Enum.at(c, 1), Enum.at(c, 0))
+  def value(%{t: 7, c: c}), do: equal_value(Enum.at(c, 0), Enum.at(c, 1))
+
+  defp greater_value(p1, p2) do
+    if Packet.value(p1) > Packet.value(p2), do: 1, else: 0
+  end
+
+  defp equal_value(p1, p2) do
+    if Packet.value(p1) == Packet.value(p2), do: 1, else: 0
+  end
+
+  def new(fields) do
+    struct(__MODULE__, fields)
+  end
+end
+
+defmodule PacketDecoder do
+  def decode_operands(<<>> = bits, acc) when is_bitstring(bits) do
+    Enum.reverse(acc)
+  end
+
+  def decode_operands(bits, acc) when is_bitstring(bits) do
+    {packet, rest} = decode(bits)
+    decode_operands(rest, [packet | acc])
+  end
+
+  def decode(<<version::3, type::3, rest::bits>>) when type == 4 do
+    {literal, new_rest} = literal(rest)
+
+    {Packet.new(v: version, t: :literal, c: literal, b: bit_size(rest) - bit_size(new_rest)),
+     new_rest}
+  end
+
+  def decode(<<version::3, type::3, rest::bits>>) do
+    {content, new_rest} = operator(rest)
+
+    {Packet.new(v: version, t: type, c: content, b: bit_size(rest) - bit_size(new_rest)),
+     new_rest}
+  end
+
+  def decode_operands(bits, 0, acc) do
+    {Enum.reverse(acc), bits}
+  end
+
+  def decode_operands(bits, count, acc) do
+    {packet, rest} = decode(bits)
+    decode_operands(rest, count - 1, [packet | acc])
+  end
+
+  defp operator(<<0::1, bit_len::15, op_bits::size(bit_len)-bits, rest::bits>>) do
+    operands = decode_operands(op_bits, [])
+    {operands, rest}
+  end
+
+  defp operator(<<1::1, packet_len::11, rest::bits>>) do
+    {operands, new_rest} = decode_operands(rest, packet_len, [])
+    {operands, new_rest}
+  end
+
+  defp literal(bits), do: literal(bits, 0)
+  defp literal(<<1::1, part::4, rest::bits>>, acc), do: literal(rest, acc * 16 + part)
+  defp literal(<<0::1, part::4, rest::bits>>, acc), do: {acc * 16 + part, rest}
+
+  def print_bits(<<b::1, rest::bits>>), do: IO.write(b) && print_bits(rest)
+  def print_bits(<<>>), do: IO.write("\n")
+end
+```
+
+## Part 1
+
+```elixir
+{packet, _rest_bits} =
+  input
+  |> Base.decode16!()
+  |> PacketDecoder.decode()
+
+Packet.sum_versions(packet)
+```
+
+## Part 2
+
+```elixir
+{packet, _rest_bits} =
+  input
+  |> Base.decode16!()
+  |> PacketDecoder.decode()
+
+Packet.value(packet)
+```
+
+## Tests
+
+```elixir
+b = "00001011011101011101011000111101"
+num = String.to_integer(b, 2)
+l = String.length(b)
+{l, num, <<num::size(l)>>}
+
+<<num::size(l)>>
+
+IO.inspect(PacketDecoder.decode(Base.decode16!("D2FE28")))
+IO.inspect(PacketDecoder.decode(Base.decode16!("38006F45291200")))
+IO.inspect(PacketDecoder.decode(Base.decode16!("EE00D40C823060")))
+IO.inspect(PacketDecoder.decode(Base.decode16!("8A004A801A8002F478")))
+IO.inspect(PacketDecoder.decode(Base.decode16!("620080001611562C8802118E34")))
+IO.inspect(PacketDecoder.decode(Base.decode16!("C0015000016115A2E0802F182340")))
+IO.inspect(PacketDecoder.decode(Base.decode16!("A0016C880162017C3686B18A3D4780")))
+IO.inspect(PacketDecoder.sum_versions(Base.decode16!("C0015000016115A2E0802F182340")))
+```

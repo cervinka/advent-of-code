@@ -1,0 +1,171 @@
+# Day 15
+
+## Setup
+
+https://adventofcode.com/2021/day/15
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"},
+  {:vega_lite, "~> 0.1.2"}
+])
+```
+
+```elixir
+kino_input = Kino.Input.textarea("Your input here:")
+```
+
+```elixir
+# input = kino_input |> Kino.Input.read()
+input = File.read!('input15.txt')
+:ok
+```
+
+```elixir
+grid =
+  for {line, row} <- input |> String.split("\n", trim: true) |> Enum.with_index(),
+      {ch, col} <- line |> String.to_charlist() |> Enum.with_index(),
+      into: %{},
+      do: {{row, col}, ch - ?0}
+
+:ok
+```
+
+```elixir
+# stupid PQ implementation with lists
+defmodule PQueue do
+  def new(), do: []
+
+  def add([], {vertex, val}), do: [{vertex, val}]
+
+  def add([{_v, best_val} = best | rest_q], {_vertex, val} = rec) do
+    if val <= best_val do
+      [rec, best | rest_q]
+    else
+      [best | add(rest_q, rec)]
+    end
+  end
+
+  def filter(q, vertex) do
+    Enum.filter(q, fn {v, _val} -> v != vertex end)
+  end
+
+  def pop([{vertex, _val} | rest_q]) do
+    {vertex, rest_q}
+  end
+end
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+defmodule Pathfinder do
+  def score(grid, start, target) do
+    dijkstra(grid, start, target)
+  end
+
+  def score_path(path, _grid), do: path
+
+  def dijkstra(grid, start, target) do
+    #  not yet visited
+    # n = Map.keys(grid)
+    # best distances
+    d = %{start => 0}
+
+    pq =
+      PQueue.new()
+      |> PQueue.add({start, 0})
+
+    dijkstra(grid, d, pq, target)
+  end
+
+  def dijkstra(_grid, d, _pq = [], target), do: d[target]
+
+  def dijkstra(grid, d, pq, target) do
+    {best, pq} = PQueue.pop(pq)
+    # {best, rest_n} = extract_best(n, d)
+    {new_d, pq} =
+      for v <- neighbours(grid, best),
+          reduce: {d, pq} do
+        {d, pq} ->
+          alt = Map.get(d, best) + Map.get(grid, v)
+
+          if alt < Map.get(d, v) do
+            {Map.put(d, v, alt), PQueue.add(pq, {v, alt})}
+          else
+            {d, pq}
+          end
+      end
+
+    dijkstra(grid, new_d, pq, target)
+  end
+
+  defp neighbours(grid, {row, col}) do
+    for {r, c} <- [{row + 1, col}, {row - 1, col}, {row, col + 1}, {row, col - 1}],
+        !is_nil(grid[{r, c}]),
+        do: {r, c}
+  end
+
+  def print(grid, path \\ []) do
+    {rows, cols} = dimensions(grid)
+
+    for row <- 0..rows do
+      for(
+        col <- 0..cols,
+        do:
+          if {row, col} in path do
+            IO.ANSI.blue_background() <>
+              (Integer.to_string(grid[{row, col}]) |> String.pad_leading(3)) <>
+              IO.ANSI.reset()
+          else
+            if grid[{row, col}] != nil do
+              Integer.to_string(grid[{row, col}]) |> String.pad_leading(3)
+            else
+              "   "
+            end
+          end
+      )
+      |> IO.puts()
+    end
+  end
+
+  def expand(grid, count) do
+    for row <- 0..(count - 1),
+        col <- 0..(count - 1),
+        reduce: %{} do
+      acc -> Map.merge(acc, move_grid(grid, row, col))
+    end
+  end
+
+  def move_grid(grid, row_diff, col_diff) do
+    {rows, cols} = dimensions(grid)
+
+    Enum.map(grid, fn {{row, col}, val} ->
+      new_val = rem(val - 1 + row_diff + col_diff, 9) + 1
+      {{row + row_diff * (rows + 1), col + col_diff * (cols + 1)}, new_val}
+    end)
+    |> Map.new()
+  end
+
+  def dimensions(grid) do
+    {rows, _} = Enum.max_by(grid |> Map.keys(), fn {row, _} -> row end)
+    {_, cols} = Enum.max_by(grid |> Map.keys(), fn {_, col} -> col end)
+    {rows, cols}
+  end
+end
+```
+
+## Part 1
+
+```elixir
+grid
+|> Pathfinder.score({0, 0}, Pathfinder.dimensions(grid))
+```
+
+## Part 2
+
+```elixir
+expanded = Pathfinder.expand(grid, 5)
+
+Pathfinder.score(expanded, {0, 0}, Pathfinder.dimensions(expanded))
+```
