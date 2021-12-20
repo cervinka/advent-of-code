@@ -1,0 +1,121 @@
+# Day 17
+
+## Setup
+
+https://adventofcode.com/2021/day/17
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.4.1"},
+  {:vega_lite, "~> 0.1.2"}
+])
+```
+
+```elixir
+target = {x_target, y_target} = {29..73, -248..-194}
+```
+
+```elixir
+defmodule Launcher do
+  def max_y_height(target), do: max_y_velocity(target) |> then(&div(&1 * (&1 + 1), 2))
+
+  # If we shoot up, the probe will fall down at the same points and cross zero. 
+  # The next step must fall into the target area. The speed of crossing the zero line
+  #  is the same as the speed of the shot. 
+  defp max_y_velocity({_x_range, ymin.._ymax}), do: abs(ymin) - 1
+
+  # direct shot in first step
+  defp min_y_velocity({_x_range, ymin.._ymax}), do: ymin
+
+  def possible_y_hits(target) do
+    for vy <- min_y_velocity(target)..max_y_velocity(target),
+        reduce: [] do
+      list ->
+        for {steps, y} <- track_y_hits(target, vy),
+            reduce: list do
+          list -> [{vy, steps, y} | list]
+        end
+    end
+  end
+
+  defp track_y_hits(target, vy), do: track_y_hits(target, {vy, _step = 0, _y = 0}, [])
+
+  # below target
+  defp track_y_hits({_, ymin.._ymax}, {_vy, _step, y}, acc)
+       when y < ymin,
+       do: acc
+
+  # hit
+  defp track_y_hits({_, ymin..ymax} = target, {vy, step, y}, acc)
+       when y >= ymin and y <= ymax,
+       do: track_y_hits(target, {vy - 1, step + 1, y + vy}, [{step, y} | acc])
+
+  # no hit
+  defp track_y_hits(target, {vy, step, y}, acc),
+    do: track_y_hits(target, {vy - 1, step + 1, y + vy}, acc)
+
+  def every_hit(target) do
+    y_hits = possible_y_hits(target)
+    max_steps = Enum.map(y_hits, fn {_vy, steps, _y} -> steps end) |> Enum.max()
+
+    for {vy, ysteps, _y} <- y_hits,
+        {vx, xsteps, _x} <- possible_y_hits(target, max_steps),
+        ysteps == xsteps,
+        do: {vx, vy}
+  end
+
+  def track_x_hits(target, vx, max_steps) when is_number(max_steps),
+    do: do_track_x_hits(target, {vx, max_steps, _step = 0, _x = 0}, [])
+
+  # after target
+  defp do_track_x_hits({_xmin..xmax, _}, {_vx, _max_steps, _step, x}, acc)
+       when x > xmax,
+       do: acc
+
+  # no more steps
+  defp do_track_x_hits({_xmin.._xmax, _}, {_vx, max_steps, step, _x}, acc)
+       when step > max_steps,
+       do: acc
+
+  # hit
+  defp do_track_x_hits({xmin..xmax, _} = target, {vx, max_steps, step, x}, acc)
+       when x >= xmin and x <= xmax do
+    do_track_x_hits(target, {update_vx(vx), max_steps, step + 1, x + vx}, [{step, x} | acc])
+  end
+
+  # no hit
+  defp do_track_x_hits(target, {vx, max_steps, step, x}, acc) do
+    do_track_x_hits(target, {update_vx(vx), max_steps, step + 1, x + vx}, acc)
+  end
+
+  def possible_y_hits({_..xmax, _} = target, max_steps) do
+    for vx <- 1..xmax,
+        reduce: [] do
+      list ->
+        track_x_hits(target, vx, max_steps)
+        |> Enum.reduce(list, fn {steps, x}, list -> [{vx, steps, x} | list] end)
+    end
+  end
+
+  defp update_vx(0), do: 0
+  defp update_vx(velocity), do: velocity - 1
+end
+
+Launcher.every_hit(target)
+|> Enum.uniq()
+|> Enum.count()
+```
+
+## Part 1
+
+```elixir
+Launcher.max_y_height(target)
+```
+
+## Part 2
+
+```elixir
+Launcher.every_hit(target)
+|> Enum.uniq()
+|> Enum.count()
+```

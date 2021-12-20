@@ -6,10 +6,7 @@ https://adventofcode.com/2021/day/16
 
 ```elixir
 Mix.install([
-  {:kino, "~> 0.4.1"},
-  {:vega_lite, "~> 0.1.2"},
-  {:libgraph, "~> 0.13.3"},
-  {:heap, "~> 2.0"}
+  {:kino, "~> 0.4.1"}
 ])
 ```
 
